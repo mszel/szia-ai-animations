@@ -1,0 +1,259 @@
+<h2 class="sr-only">Interactive visualization of the AC-3 plus backtracking algorithm solving the US map four-coloring problem using real state geographic shapes, with play, pause, step, and reset controls.</h2>
+
+<div style="padding: 1rem 0;">
+
+<div style="display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; align-items: center;">
+  <button id="play-btn">▶ Play</button>
+  <button id="step-btn">Step</button>
+  <button id="reset-btn">Reset</button>
+  <label style="font-size: 14px; color: var(--color-text-secondary); margin-left: 8px;">Speed</label>
+  <input type="range" id="speed" min="20" max="600" value="150" step="10" style="width: 120px;" />
+  <label style="font-size: 14px; color: var(--color-text-secondary); margin-left: 8px;">
+    <input type="checkbox" id="use-mrv" checked style="vertical-align: middle;" /> AC-3 + MRV
+  </label>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 1rem;">
+  <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px;">
+    <div style="font-size: 12px; color: var(--color-text-secondary);">Assignments</div>
+    <div id="stat-assign" style="font-size: 20px; font-weight: 500;">0</div>
+  </div>
+  <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px;">
+    <div style="font-size: 12px; color: var(--color-text-secondary);">Constraint checks</div>
+    <div id="stat-checks" style="font-size: 20px; font-weight: 500;">0</div>
+  </div>
+  <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px;">
+    <div style="font-size: 12px; color: var(--color-text-secondary);">Dead ends</div>
+    <div id="stat-dead" style="font-size: 20px; font-weight: 500;">0</div>
+  </div>
+  <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px;">
+    <div style="font-size: 12px; color: var(--color-text-secondary);">Status</div>
+    <div id="stat-status" style="font-size: 14px; font-weight: 500; padding-top: 4px;">Loading…</div>
+  </div>
+</div>
+
+<div style="display: flex; gap: 12px; font-size: 13px; margin-bottom: 8px; flex-wrap: wrap;">
+  <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 14px; background: #E24B4A; border-radius: 3px; display: inline-block;"></span>Red</span>
+  <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 14px; background: #378ADD; border-radius: 3px; display: inline-block;"></span>Blue</span>
+  <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 14px; background: #639922; border-radius: 3px; display: inline-block;"></span>Green</span>
+  <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 14px; background: #EF9F27; border-radius: 3px; display: inline-block;"></span>Yellow</span>
+  <span style="display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--color-text-secondary);">Hover a state for name</span>
+</div>
+
+<div id="map-wrap" style="background: var(--color-background-secondary); border-radius: var(--border-radius-lg); width: 100%; aspect-ratio: 16 / 9; position: relative; overflow: hidden;">
+  <svg id="map" style="width: 100%; height: 100%; display: block;"></svg>
+</div>
+
+<div id="tooltip" style="font-size: 13px; color: var(--color-text-secondary); margin-top: 8px; min-height: 20px;">Loading map…</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const svg = d3.select('#map');
+  const COLORS = ['R','B','G','Y'];
+  const COLOR_HEX = { R:'#E24B4A', B:'#378ADD', G:'#639922', Y:'#EF9F27' };
+
+  // Hard-coded neighbor list for contiguous 48 (state postal codes)
+  const ADJ_PAIRS = [
+    ['WA','OR'],['WA','ID'],['OR','ID'],['OR','CA'],['OR','NV'],['CA','NV'],['CA','AZ'],['NV','ID'],['NV','UT'],['NV','AZ'],['ID','MT'],['ID','WY'],['ID','UT'],
+    ['MT','ND'],['MT','SD'],['MT','WY'],['WY','SD'],['WY','NE'],['WY','CO'],['WY','UT'],['UT','CO'],['UT','AZ'],['AZ','NM'],['CO','NM'],['CO','NE'],['CO','KS'],['CO','OK'],
+    ['NM','OK'],['NM','TX'],['ND','SD'],['ND','MN'],['SD','NE'],['SD','IA'],['SD','MN'],['NE','IA'],['NE','MO'],['NE','KS'],['KS','MO'],['KS','OK'],['OK','TX'],['OK','AR'],['OK','MO'],
+    ['TX','AR'],['TX','LA'],['MN','IA'],['MN','WI'],['IA','WI'],['IA','IL'],['IA','MO'],['MO','AR'],['MO','IL'],['MO','KY'],['MO','TN'],['AR','LA'],['AR','MS'],['AR','TN'],
+    ['LA','MS'],['MS','TN'],['MS','AL'],['TN','KY'],['TN','AL'],['TN','GA'],['TN','NC'],['TN','VA'],['AL','GA'],['AL','FL'],['GA','FL'],['GA','SC'],['GA','NC'],['SC','NC'],['NC','VA'],
+    ['KY','IL'],['KY','IN'],['KY','OH'],['KY','WV'],['KY','VA'],['IL','IN'],['IL','WI'],['IN','OH'],['IN','MI'],['MI','OH'],['MI','WI'],['OH','PA'],['OH','WV'],['WV','VA'],['WV','MD'],['WV','PA'],
+    ['VA','MD'],['PA','NY'],['PA','NJ'],['PA','MD'],['PA','DE'],['MD','DE'],['NJ','NY'],['NJ','DE'],['NY','VT'],['NY','MA'],['NY','CT'],['VT','NH'],['VT','MA'],['NH','ME'],['NH','MA'],
+    ['MA','CT'],['MA','RI'],['CT','RI']
+  ];
+  // FIPS -> postal code for lower 48
+  const FIPS_TO_CODE = {
+    '01':'AL','04':'AZ','05':'AR','06':'CA','08':'CO','09':'CT','10':'DE','12':'FL','13':'GA',
+    '16':'ID','17':'IL','18':'IN','19':'IA','20':'KS','21':'KY','22':'LA','23':'ME','24':'MD',
+    '25':'MA','26':'MI','27':'MN','28':'MS','29':'MO','30':'MT','31':'NE','32':'NV','33':'NH',
+    '34':'NJ','35':'NM','36':'NY','37':'NC','38':'ND','39':'OH','40':'OK','41':'OR','42':'PA',
+    '44':'RI','45':'SC','46':'SD','47':'TN','48':'TX','49':'UT','50':'VT','51':'VA','53':'WA',
+    '54':'WV','55':'WI','56':'WY'
+  };
+
+  // Build adjacency
+  const adj = {};
+  Object.values(FIPS_TO_CODE).forEach(c => adj[c] = new Set());
+  ADJ_PAIRS.forEach(([a,b]) => { adj[a].add(b); adj[b].add(a); });
+
+  // Solver state
+  let steps = [], idx = 0, playing = false, timer = null;
+  let assignment = {};
+  let stats = { assign: 0, checks: 0, dead: 0 };
+  const paths = {};  // code -> SVG path element
+  const names = {};  // code -> display name
+
+  function updateStats(status){
+    $('stat-assign').textContent = stats.assign;
+    $('stat-checks').textContent = stats.checks;
+    $('stat-dead').textContent = stats.dead;
+    $('stat-status').textContent = status;
+  }
+
+  function resetState(){
+    steps = []; idx = 0; playing = false;
+    if(timer){ clearTimeout(timer); timer = null; }
+    assignment = {};
+    stats = { assign: 0, checks: 0, dead: 0 };
+    Object.values(paths).forEach(p => {
+      p.setAttribute('fill', '#ffffff');
+      p.setAttribute('stroke', '#555');
+      p.setAttribute('stroke-width', '0.6');
+    });
+    updateStats('Ready');
+    $('play-btn').textContent = '▶ Play';
+  }
+
+  function planSolution(useMRV){
+    const ids = Object.keys(adj);
+    const dom = {}; ids.forEach(s => dom[s] = new Set(COLORS));
+    const assign = {};
+    const events = [];
+    let checks = 0, dead = 0;
+
+    function pickNext(){
+      const un = ids.filter(s => !(s in assign));
+      if(un.length === 0) return null;
+      if(useMRV) return un.reduce((best, s) => dom[s].size < dom[best].size ? s : best, un[0]);
+      return un[0];
+    }
+    function backtrack(){
+      if(Object.keys(assign).length === ids.length) return true;
+      const s = pickNext();
+      for(const c of Array.from(dom[s])){
+        let ok = true;
+        for(const n of adj[s]){ checks++; if(assign[n] === c){ ok = false; break; } }
+        if(!ok) continue;
+        assign[s] = c;
+        const snap = {}; ids.forEach(x => snap[x] = new Set(dom[x]));
+        let wipeout = false;
+        for(const n of adj[s]){
+          if(!(n in assign) && dom[n].has(c)){
+            dom[n].delete(c);
+            if(dom[n].size === 0) wipeout = true;
+          }
+        }
+        events.push({ type:'assign', state:s, color:c, checks, assignCount: Object.keys(assign).length, dead });
+        if(!wipeout && backtrack()) return true;
+        delete assign[s];
+        ids.forEach(x => dom[x] = snap[x]);
+        dead++;
+        events.push({ type:'unassign', state:s, checks, assignCount: Object.keys(assign).length, dead });
+      }
+      return false;
+    }
+    backtrack();
+    return events;
+  }
+
+  function applyStep(ev){
+    const p = paths[ev.state];
+    if(!p) return;
+    if(ev.type === 'assign'){
+      assignment[ev.state] = ev.color;
+      p.setAttribute('fill', COLOR_HEX[ev.color]);
+      p.setAttribute('stroke', '#222');
+      p.setAttribute('stroke-width', '0.8');
+    } else {
+      delete assignment[ev.state];
+      p.setAttribute('fill', '#ffffff');
+      p.setAttribute('stroke', '#555');
+      p.setAttribute('stroke-width', '0.6');
+    }
+    stats.assign = ev.assignCount;
+    stats.checks = ev.checks;
+    stats.dead = ev.dead;
+    const done = idx >= steps.length - 1 && Object.keys(assignment).length === Object.keys(adj).length;
+    updateStats(done ? 'Solved ✓' : (ev.type === 'assign' ? 'Assigning' : 'Backtracking'));
+  }
+
+  function stepOnce(){
+    if(idx >= steps.length){ playing = false; $('play-btn').textContent = '▶ Play'; updateStats('Solved ✓'); return; }
+    applyStep(steps[idx]); idx++;
+  }
+
+  function tick(){
+    if(!playing) return;
+    stepOnce();
+    if(idx >= steps.length){ playing = false; $('play-btn').textContent = '▶ Play'; return; }
+    timer = setTimeout(tick, parseInt($('speed').value, 10));
+  }
+
+  function ensurePlanned(){
+    if(steps.length === 0) steps = planSolution($('use-mrv').checked);
+  }
+
+  $('play-btn').addEventListener('click', () => {
+    ensurePlanned();
+    playing = !playing;
+    $('play-btn').textContent = playing ? '⏸ Pause' : '▶ Play';
+    if(playing) tick(); else if(timer){ clearTimeout(timer); timer = null; }
+  });
+  $('step-btn').addEventListener('click', () => {
+    ensurePlanned();
+    if(playing){ playing = false; $('play-btn').textContent = '▶ Play'; if(timer){ clearTimeout(timer); timer = null; } }
+    stepOnce();
+  });
+  $('reset-btn').addEventListener('click', resetState);
+  $('use-mrv').addEventListener('change', resetState);
+
+  // Load US states TopoJSON
+  const TOPO_URL = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json';
+
+  d3.json(TOPO_URL).then(us => {
+    const statesFC = topojson.feature(us, us.objects.states);
+    // Filter to lower 48 (exclude AK=02, HI=15, PR=72, DC=11)
+    const features = statesFC.features.filter(f => {
+      const id = String(f.id).padStart(2,'0');
+      return FIPS_TO_CODE[id] !== undefined;
+    });
+
+    const wrap = $('map-wrap');
+    const W = wrap.clientWidth;
+    const H = wrap.clientHeight;
+    svg.attr('viewBox', `0 0 ${W} ${H}`);
+
+    const projection = d3.geoAlbersUsa().fitSize([W - 20, H - 20], { type:'FeatureCollection', features });
+    // nudge into padding
+    const path = d3.geoPath(projection);
+
+    const g = svg.append('g').attr('transform','translate(10,10)');
+
+    features.forEach(f => {
+      const fips = String(f.id).padStart(2,'0');
+      const code = FIPS_TO_CODE[fips];
+      if(!code) return;
+      names[code] = f.properties.name;
+      const p = g.append('path')
+        .attr('d', path(f))
+        .attr('fill','#ffffff')
+        .attr('stroke','#555')
+        .attr('stroke-width','0.6')
+        .style('transition','fill 0.2s ease, stroke 0.15s ease')
+        .on('mouseenter', () => {
+          $('tooltip').textContent = `${f.properties.name} (${code}) · neighbors: ${Array.from(adj[code]).join(', ')}`;
+          p.attr('stroke','#000').attr('stroke-width','1.2');
+        })
+        .on('mouseleave', () => {
+          $('tooltip').textContent = '—';
+          if(assignment[code]){ p.attr('stroke','#222').attr('stroke-width','0.8'); }
+          else { p.attr('stroke','#555').attr('stroke-width','0.6'); }
+        })
+        .node();
+      paths[code] = p;
+    });
+    $('tooltip').textContent = '—';
+    updateStats('Ready');
+  }).catch(err => {
+    $('stat-status').textContent = 'Map failed';
+    $('tooltip').textContent = 'Could not load state shapes: ' + err.message;
+  });
+})();
+</script>
