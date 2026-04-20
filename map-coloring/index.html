@@ -1,8 +1,55 @@
-<h2 class="sr-only">Interactive visualization of the AC-3 plus backtracking algorithm solving the US map four-coloring problem using real state geographic shapes, with play, pause, step, and reset controls.</h2>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>US Map Coloring — AC-3 + Backtracking</title>
+<style>
+:root {
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f5f5f4;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #6b6b6b;
+  --color-border-tertiary: rgba(0,0,0,0.15);
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background-primary: #1a1a1a;
+    --color-background-secondary: #2a2a2a;
+    --color-text-primary: #e8e8e8;
+    --color-text-secondary: #999;
+    --color-border-tertiary: rgba(255,255,255,0.15);
+  }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); color: var(--color-text-primary); background: var(--color-background-primary); padding: 1.5rem; max-width: 960px; margin: 0 auto; }
+h1 { font-size: 22px; font-weight: 500; margin-bottom: 1rem; }
+button { background: transparent; border: 0.5px solid rgba(0,0,0,0.3); border-radius: var(--border-radius-md); padding: 6px 16px; font-size: 14px; cursor: pointer; font-family: var(--font-sans); }
+button:hover { background: var(--color-background-secondary); }
+button:active { transform: scale(0.98); }
+input[type=range] { vertical-align: middle; }
+.controls { display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 1rem; }
+.stat { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px; }
+.stat-label { font-size: 12px; color: var(--color-text-secondary); }
+.stat-val { font-size: 20px; font-weight: 500; }
+.stat-val-sm { font-size: 14px; font-weight: 500; padding-top: 4px; }
+.legend { display: flex; gap: 12px; font-size: 13px; margin-bottom: 8px; flex-wrap: wrap; }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.legend-swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+#map-wrap { background: var(--color-background-secondary); border-radius: var(--border-radius-lg); width: 100%; aspect-ratio: 16 / 9; position: relative; overflow: hidden; }
+#map { width: 100%; height: 100%; display: block; }
+#tooltip { font-size: 13px; color: var(--color-text-secondary); margin-top: 8px; min-height: 20px; }
+</style>
+</head>
+<body>
 
-<div style="padding: 1rem 0;">
+<h1>US map coloring — AC-3 + backtracking + MRV</h1>
 
-<div style="display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; align-items: center;">
+<div class="controls">
   <button id="play-btn">▶ Play</button>
   <button id="step-btn">Step</button>
   <button id="reset-btn">Reset</button>
@@ -13,40 +60,26 @@
   </label>
 </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 1rem;">
-  <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px;">
-    <div style="font-size: 12px; color: var(--color-text-secondary);">Assignments</div>
-    <div id="stat-assign" style="font-size: 20px; font-weight: 500;">0</div>
-  </div>
-  <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px;">
-    <div style="font-size: 12px; color: var(--color-text-secondary);">Constraint checks</div>
-    <div id="stat-checks" style="font-size: 20px; font-weight: 500;">0</div>
-  </div>
-  <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px;">
-    <div style="font-size: 12px; color: var(--color-text-secondary);">Dead ends</div>
-    <div id="stat-dead" style="font-size: 20px; font-weight: 500;">0</div>
-  </div>
-  <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px;">
-    <div style="font-size: 12px; color: var(--color-text-secondary);">Status</div>
-    <div id="stat-status" style="font-size: 14px; font-weight: 500; padding-top: 4px;">Loading…</div>
-  </div>
+<div class="stats">
+  <div class="stat"><div class="stat-label">Assignments</div><div class="stat-val" id="stat-assign">0</div></div>
+  <div class="stat"><div class="stat-label">Constraint checks</div><div class="stat-val" id="stat-checks">0</div></div>
+  <div class="stat"><div class="stat-label">Dead ends</div><div class="stat-val" id="stat-dead">0</div></div>
+  <div class="stat"><div class="stat-label">Status</div><div class="stat-val-sm" id="stat-status">Loading…</div></div>
 </div>
 
-<div style="display: flex; gap: 12px; font-size: 13px; margin-bottom: 8px; flex-wrap: wrap;">
-  <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 14px; background: #E24B4A; border-radius: 3px; display: inline-block;"></span>Red</span>
-  <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 14px; background: #378ADD; border-radius: 3px; display: inline-block;"></span>Blue</span>
-  <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 14px; background: #639922; border-radius: 3px; display: inline-block;"></span>Green</span>
-  <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 14px; background: #EF9F27; border-radius: 3px; display: inline-block;"></span>Yellow</span>
-  <span style="display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--color-text-secondary);">Hover a state for name</span>
+<div class="legend">
+  <span class="legend-item"><span class="legend-swatch" style="background:#E24B4A;"></span>Red</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#378ADD;"></span>Blue</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#639922;"></span>Green</span>
+  <span class="legend-item"><span class="legend-swatch" style="background:#EF9F27;"></span>Yellow</span>
+  <span style="margin-left: auto; color: var(--color-text-secondary);">Hover a state for name</span>
 </div>
 
-<div id="map-wrap" style="background: var(--color-background-secondary); border-radius: var(--border-radius-lg); width: 100%; aspect-ratio: 16 / 9; position: relative; overflow: hidden;">
-  <svg id="map" style="width: 100%; height: 100%; display: block;"></svg>
+<div id="map-wrap">
+  <svg id="map"></svg>
 </div>
 
-<div id="tooltip" style="font-size: 13px; color: var(--color-text-secondary); margin-top: 8px; min-height: 20px;">Loading map…</div>
-
-</div>
+<div id="tooltip">Loading map…</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
@@ -57,7 +90,6 @@
   const COLORS = ['R','B','G','Y'];
   const COLOR_HEX = { R:'#E24B4A', B:'#378ADD', G:'#639922', Y:'#EF9F27' };
 
-  // Hard-coded neighbor list for contiguous 48 (state postal codes)
   const ADJ_PAIRS = [
     ['WA','OR'],['WA','ID'],['OR','ID'],['OR','CA'],['OR','NV'],['CA','NV'],['CA','AZ'],['NV','ID'],['NV','UT'],['NV','AZ'],['ID','MT'],['ID','WY'],['ID','UT'],
     ['MT','ND'],['MT','SD'],['MT','WY'],['WY','SD'],['WY','NE'],['WY','CO'],['WY','UT'],['UT','CO'],['UT','AZ'],['AZ','NM'],['CO','NM'],['CO','NE'],['CO','KS'],['CO','OK'],
@@ -68,7 +100,6 @@
     ['VA','MD'],['PA','NY'],['PA','NJ'],['PA','MD'],['PA','DE'],['MD','DE'],['NJ','NY'],['NJ','DE'],['NY','VT'],['NY','MA'],['NY','CT'],['VT','NH'],['VT','MA'],['NH','ME'],['NH','MA'],
     ['MA','CT'],['MA','RI'],['CT','RI']
   ];
-  // FIPS -> postal code for lower 48
   const FIPS_TO_CODE = {
     '01':'AL','04':'AZ','05':'AR','06':'CA','08':'CO','09':'CT','10':'DE','12':'FL','13':'GA',
     '16':'ID','17':'IL','18':'IN','19':'IA','20':'KS','21':'KY','22':'LA','23':'ME','24':'MD',
@@ -78,17 +109,15 @@
     '54':'WV','55':'WI','56':'WY'
   };
 
-  // Build adjacency
   const adj = {};
   Object.values(FIPS_TO_CODE).forEach(c => adj[c] = new Set());
   ADJ_PAIRS.forEach(([a,b]) => { adj[a].add(b); adj[b].add(a); });
 
-  // Solver state
   let steps = [], idx = 0, playing = false, timer = null;
   let assignment = {};
   let stats = { assign: 0, checks: 0, dead: 0 };
-  const paths = {};  // code -> SVG path element
-  const names = {};  // code -> display name
+  const paths = {};
+  const names = {};
 
   function updateStats(status){
     $('stat-assign').textContent = stats.assign;
@@ -117,7 +146,6 @@
     const assign = {};
     const events = [];
     let checks = 0, dead = 0;
-
     function pickNext(){
       const un = ids.filter(s => !(s in assign));
       if(un.length === 0) return null;
@@ -204,12 +232,10 @@
   $('reset-btn').addEventListener('click', resetState);
   $('use-mrv').addEventListener('change', resetState);
 
-  // Load US states TopoJSON
   const TOPO_URL = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json';
 
   d3.json(TOPO_URL).then(us => {
     const statesFC = topojson.feature(us, us.objects.states);
-    // Filter to lower 48 (exclude AK=02, HI=15, PR=72, DC=11)
     const features = statesFC.features.filter(f => {
       const id = String(f.id).padStart(2,'0');
       return FIPS_TO_CODE[id] !== undefined;
@@ -221,9 +247,7 @@
     svg.attr('viewBox', `0 0 ${W} ${H}`);
 
     const projection = d3.geoAlbersUsa().fitSize([W - 20, H - 20], { type:'FeatureCollection', features });
-    // nudge into padding
     const path = d3.geoPath(projection);
-
     const g = svg.append('g').attr('transform','translate(10,10)');
 
     features.forEach(f => {
@@ -257,3 +281,5 @@
   });
 })();
 </script>
+</body>
+</html>
